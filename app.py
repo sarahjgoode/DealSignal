@@ -163,7 +163,7 @@ with tab2:
                 hover_name="Company Name",
                 hover_data=hover_cols,
                 color_continuous_scale="RdYlGn", 
-                title="EV/Revenue vs. EBITDA Margin"
+                title="Valuation/Revenue vs. EBITDA Margin"
             )
             st.plotly_chart(fig_scatter, use_container_width=True)
         else:
