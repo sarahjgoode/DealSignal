@@ -153,7 +153,22 @@ with tab2:
     with col_chart_1:
         st.subheader("Valuation vs. Profitability")
         if not filtered_df.empty:
-            hover_cols = ["Annual Return %"] if "Annual Return %" in filtered_df.columns else []
+            
+            # Define specific formatting for the hover tooltip
+            # ':.2%' converts 0.1234 to 12.34% (Standard finance formatting)
+            # ':.4f' forces exactly 4 decimal places for ratios
+            hover_dict = {
+                "EBITDA Margin %": ":.2%",       
+                "Valuation/Revenue": ":.4f",     
+                "Conviction_Score": ":.4f",      
+                "Implied EV": ":,.0f", # Readable Money format
+                "Company Name": True   # Keep the name
+            }
+            
+            # Add Annual Return if it exists in data
+            if "Annual Return %" in filtered_df.columns:
+                hover_dict["Annual Return %"] = ":.2%"
+
             fig_scatter = px.scatter(
                 filtered_df,
                 x="EBITDA Margin %", 
@@ -161,10 +176,15 @@ with tab2:
                 size="Implied EV",
                 color="Conviction_Score", 
                 hover_name="Company Name",
-                hover_data=hover_cols,
+                hover_data=hover_dict,  # APPLY THE FORMATTING HERE
                 color_continuous_scale="RdYlGn", 
-                title="Valuation/Revenue vs. EBITDA Margin"
+                title="EV/Revenue vs. EBITDA Margin",
+                labels={"Valuation/Revenue": "EV / Revenue"} # Rename axis title
             )
+            
+            # FIX: Format X-Axis as a Percentage (e.g., 20%)
+            fig_scatter.update_xaxes(tickformat=".0%")
+            
             st.plotly_chart(fig_scatter, use_container_width=True)
         else:
             st.info("No data to plot with current filters.")
@@ -174,12 +194,14 @@ with tab2:
         if not filtered_df.empty:
             fig_hist = px.histogram(
                 filtered_df, 
-                x="Valuation/Revenue",
+                x="Valuation/Revenue", 
                 nbins=20, 
-                title="EV / Revenue Distribution"
+                title="EV / Revenue Distribution",
+                labels={"Valuation/Revenue": "EV / Revenue"}
             )
+            # Optional: Format X-axis for the histogram too
+            fig_hist.update_xaxes(tickformat=".2f")
             st.plotly_chart(fig_hist, use_container_width=True)
-
 # --- TAB 3: DEEP DIVE (Sorted Alphabetically) ---
 with tab3:
     if not filtered_df.empty:
