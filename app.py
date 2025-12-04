@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 import numpy as np
 
 # -----------------------------------------------------------------------------
@@ -13,16 +14,15 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# 2. DATA LOADING
+# 2. ROBUST DATA LOADING
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
     try:
-        # We read the standard file. Make sure you renamed your new CSV 
-        # to 'enhanced_candidates.csv' before uploading to GitHub!
+        # Load the CSV. Ensure you renamed your new file to 'enhanced_candidates.csv'
         df = pd.read_csv('enhanced_candidates.csv')
         
-        # --- CLEANING: Force numeric types ---
+        # CLEANING: Force numeric columns to be numbers (not strings)
         cols_to_clean = ['Conviction_Score', 'Implied EV', 'EBITDA', 'Buyout_Prob', 
                          'Analyst_Upside', 'Valuation/Revenue', 'Rule_of_40', 
                          'Rev_Growth', 'EBITDA Margin %']
@@ -31,7 +31,7 @@ def load_data():
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
 
-        # --- CALCULATION: Safe EV/EBITDA ---
+        # CALCULATION: Create EV/EBITDA safely
         df['EV_EBITDA_Display'] = df.apply(
             lambda row: row['Implied EV'] / row['EBITDA'] if (pd.notnull(row['EBITDA']) and row['EBITDA'] > 0) else np.nan, 
             axis=1
@@ -70,7 +70,7 @@ filtered_df = df[mask].copy()
 # -----------------------------------------------------------------------------
 st.title("DealSignal: Take-Private Screener")
 
-# --- CUSTOM PROJECT OVERVIEW ---
+# --- PROJECT OVERVIEW NOTE ---
 st.markdown(
     """
     **Project Overview:** Identifying U.S. publicly listed software companies that exhibit 
@@ -119,7 +119,6 @@ with tab1:
 
 # --- TAB 2: VISUAL ANALYSIS ---
 with tab2:
-    import plotly.express as px
     col_chart_1, col_chart_2 = st.columns(2)
     
     with col_chart_1:
@@ -147,6 +146,7 @@ with tab3:
     if not filtered_df.empty:
         # Sort so highest conviction is first
         sorted_candidates = filtered_df.sort_values('Conviction_Score', ascending=False)
+        top_ticker = sorted_candidates.iloc[0]['Ticker']
         
         # Selector
         selected_ticker = st.selectbox("Select Company", sorted_candidates['Ticker'].unique())
@@ -154,8 +154,8 @@ with tab3:
         # Get Data
         comp = filtered_df[filtered_df['Ticker'] == selected_ticker].iloc[0]
         
-        # --- HEADER: Displays "Varonis Systems (VRNS)" ---
-        # Because we are using the new CSV, comp['Company Name'] is already the full name!
+        # --- DISPLAY NAME FIX ---
+        # Since your new CSV has the names, we just use them directly!
         st.markdown(f"## {comp['Company Name']} ({comp['Ticker']})")
         
         dp1, dp2, dp3 = st.columns(3)
