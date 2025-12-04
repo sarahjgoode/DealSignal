@@ -175,7 +175,6 @@ with tab2:
             fig_hist = px.histogram(
                 filtered_df, 
                 x="Valuation/Revenue",
-                y="# of Companies",
                 nbins=20, 
                 title="EV / Revenue Distribution"
             )
