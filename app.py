@@ -1,193 +1,45 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
+import os
 
-# -----------------------------------------------------------------------------
-# 1. SETUP & CONFIGURATION
-# -----------------------------------------------------------------------------
-st.set_page_config(
-    page_title="DealSignal: Take-Private Screener",
-    page_icon="signal",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+# 1. Print a message immediately to prove the app is running
+st.title("Debug Mode: DealSignal")
+st.write("✅ App successfully started.")
 
-# -----------------------------------------------------------------------------
-# 2. DATA LOADING
-# -----------------------------------------------------------------------------
-@st.cache_data
-def load_data():
-    try:
-        df = pd.read_csv('enhanced_candidates.csv')
-        
-        # --- CLEANING: Force numeric types ---
-        cols_to_clean = ['Conviction_Score', 'Implied EV', 'EBITDA', 'Buyout_Prob', 
-                         'Analyst_Upside', 'Valuation/Revenue', 'Rule_of_40', 
-                         'Rev_Growth', 'EBITDA Margin %']
-        
-        for col in cols_to_clean:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-
-        # --- CALCULATION: Safe EV/EBITDA ---
-        df['EV_EBITDA_Display'] = df.apply(
-            lambda row: row['Implied EV'] / row['EBITDA'] if (pd.notnull(row['EBITDA']) and row['EBITDA'] > 0) else np.nan, 
-            axis=1
-        )
-        return df
-    except Exception as e:
-        st.error(f"Data Loading Error: {e}")
-        return None
-
-df = load_data()
-
-if df is None:
+# 2. Try importing libraries one by one
+try:
+    import pandas as pd
+    st.write("✅ Pandas imported successfully.")
+    import plotly.express as px
+    st.write("✅ Plotly imported successfully.")
+    import numpy as np
+    st.write("✅ Numpy imported successfully.")
+except ImportError as e:
+    st.error(f"❌ Library Import Failed: {e}")
     st.stop()
 
-# -----------------------------------------------------------------------------
-# 3. SIDEBAR FILTERS
-# -----------------------------------------------------------------------------
-st.sidebar.title("DealSignal Settings")
+# 3. Check if the CSV file exists
+file_name = 'enhanced_candidates.csv'
+if os.path.exists(file_name):
+    st.write(f"✅ File '{file_name}' found.")
+else:
+    st.error(f"❌ File '{file_name}' NOT found. Please check the spelling and capitalization in GitHub.")
+    st.write("Files in current directory:", os.listdir())
+    st.stop()
 
-min_score = st.sidebar.slider("Min. Conviction Score", 0.0, 1.0, 0.5, 0.05)
-min_ev, max_ev = st.sidebar.select_slider(
-    "Implied EV Range ($B)",
-    options=[0.1, 0.5, 1, 2, 5, 10, 20, 50, 100],
-    value=(0.1, 100)
-)
+# 4. Try loading the data
+try:
+    df = pd.read_csv(file_name)
+    st.write(f"✅ Data loaded. Rows: {len(df)}")
+    st.dataframe(df.head())
+except Exception as e:
+    st.error(f"❌ Data Load Error: {e}")
+    st.stop()
 
-mask = (
-    (df['Conviction_Score'] >= min_score) & 
-    (df['Implied EV'] >= min_ev * 1e9) & 
-    (df['Implied EV'] <= max_ev * 1e9)
-)
-filtered_df = df[mask].copy()
-
-# -----------------------------------------------------------------------------
-# 4. MAIN DASHBOARD
-# -----------------------------------------------------------------------------
-st.title("DealSignal: Take-Private Screener")
-
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Companies Screened", len(df))
-col2.metric("Candidates Found", len(filtered_df))
-col3.metric("Avg Probability", f"{filtered_df['Buyout_Prob'].mean():.1%}")
-col4.metric("Median Upside", f"{filtered_df['Analyst_Upside'].median():.1%}")
-
-tab1, tab2, tab3 = st.tabs(["🏆 Top Candidates", "📊 Visual Analysis", "🔍 Company Deep Dive"])
-
-# --- TAB 1: TOP CANDIDATES (Streamlit Native Styling) ---
-with tab1:
-    st.subheader("Top Candidates")
-    
-    # 1. Prepare the dataframe with exact columns we want
-    display_cols = [
-        'Ticker', 'Company Name', 'Conviction_Score', 'Buyout_Prob', 
-        'Analyst_Upside', 'Implied EV', 'EV_EBITDA_Display', 
-        'Valuation/Revenue', 'Rule_of_40'
-    ]
-    
-    # Filter columns safely
-    valid_cols = [c for c in display_cols if c in filtered_df.columns]
-    table_df = filtered_df.sort_values(by='Conviction_Score', ascending=False)[valid_cols]
-
-    # 2. Use Streamlit Column Configuration (No Matplotlib needed!)
-    st.dataframe(
-        table_df,
-        use_container_width=True,
-        height=600,
-        column_config={
-            "Ticker": st.column_config.TextColumn("Ticker", width="small"),
-            "Company Name": st.column_config.TextColumn("Company", width="medium"),
-            
-            # Progress Bar for Conviction Score (Replaces Background Gradient)
-            "Conviction_Score": st.column_config.ProgressColumn(
-                "Conviction Score",
-                format="%.2f",
-                min_value=0,
-                max_value=1,
-            ),
-            
-            "Buyout_Prob": st.column_config.NumberColumn(
-                "Buyout Prob",
-                format="%.1f%%"
-            ),
-            
-            "Analyst_Upside": st.column_config.NumberColumn(
-                "Analyst Upside",
-                format="%.1f%%"
-            ),
-            
-            "Implied EV": st.column_config.NumberColumn(
-                "Implied EV",
-                format="$%.0f"
-            ),
-            
-            "EV_EBITDA_Display": st.column_config.NumberColumn(
-                "EV/EBITDA",
-                format="%.1fx"
-            ),
-            
-            "Valuation/Revenue": st.column_config.NumberColumn(
-                "EV/Revenue",
-                format="%.1fx"
-            ),
-             "Rule_of_40": st.column_config.NumberColumn(
-                "Rule of 40",
-                format="%.1f"
-            )
-        },
-        hide_index=True
-    )
-
-# --- TAB 2: VISUAL ANALYSIS ---
-with tab2:
-    # Import plotly inside the function to be safe
-    import plotly.express as px
-    
-    col_chart_1, col_chart_2 = st.columns(2)
-    
-    with col_chart_1:
-        st.subheader("Valuation vs. Profitability")
-        if not filtered_df.empty:
-            fig_scatter = px.scatter(
-                filtered_df,
-                x="EBITDA Margin %", y="Valuation/Revenue", size="Implied EV",
-                color="Conviction_Score", hover_name="Company Name",
-                color_continuous_scale="RdYlGn", title="EV/Revenue vs. EBITDA Margin"
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
-        
-    with col_chart_2:
-        st.subheader("Distribution of Valuation")
-        if not filtered_df.empty:
-            fig_hist = px.histogram(
-                filtered_df, x="Valuation/Revenue", nbins=20, 
-                title="EV / Revenue Distribution"
-            )
-            st.plotly_chart(fig_hist, use_container_width=True)
-
-# --- TAB 3: DEEP DIVE ---
-with tab3:
-    if not filtered_df.empty:
-        sorted_candidates = filtered_df.sort_values('Conviction_Score', ascending=False)
-        top_ticker = sorted_candidates.iloc[0]['Ticker']
-        
-        selected_ticker = st.selectbox("Select Company", sorted_candidates['Ticker'].unique())
-        comp = filtered_df[filtered_df['Ticker'] == selected_ticker].iloc[0]
-        
-        st.markdown(f"## {comp['Company Name']} ({comp['Ticker']})")
-        
-        dp1, dp2, dp3 = st.columns(3)
-        with dp1:
-            st.metric("Implied EV", f"${comp['Implied EV']/1e9:,.2f}B")
-            st.metric("EV / Revenue", f"{comp['Valuation/Revenue']:.2f}x")
-        with dp2:
-            st.metric("Revenue", f"${comp['Revenue']/1e6:,.0f}M")
-            st.metric("EBITDA Margin", f"{comp['EBITDA Margin %']:.1%}")
-        with dp3:
-            st.metric("Conviction Score", f"{comp['Conviction_Score']:.2f}")
-            prob = max(0.0, min(1.0, float(comp['Buyout_Prob'])))
-            st.progress(prob, text=f"Buyout Prob: {prob:.1%}")
-    else:
-        st.write("No candidates match filters.")
+# 5. Try the basic Chart
+try:
+    st.write("Testing Chart...")
+    fig = px.scatter(df, x=df.columns[0], y=df.columns[1], title="Test Chart")
+    st.plotly_chart(fig)
+    st.write("✅ Chart rendered successfully.")
+except Exception as e:
+    st.error(f"❌ Chart Error: {e}")
